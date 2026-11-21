@@ -35,6 +35,23 @@ const run = (sql, ...args) => db.prepare(sql).run(...args)
 const hash = (password, salt = randomBytes(16).toString('hex')) =>
   salt + ':' + scryptSync(password, salt, 64).toString('hex')
 const digest = token => createHash('sha256').update(token).digest('hex')
+const columns = new Set(rows('PRAGMA table_info(vehicles)').map(column => column.name))
+for (const [name, definition] of Object.entries({
+  brand:"TEXT NOT NULL DEFAULT ''", model:"TEXT NOT NULL DEFAULT ''",
+  transmission:"TEXT NOT NULL DEFAULT ''", fuel:"TEXT NOT NULL DEFAULT ''",
+  finance:'INTEGER NOT NULL DEFAULT 0', trade:'INTEGER NOT NULL DEFAULT 0',
+  cover:'INTEGER NOT NULL DEFAULT 1'
+})) {
+  if (!columns.has(name)) db.exec(`ALTER TABLE vehicles ADD COLUMN ${name} ${definition}`)
+}
+const photoKinds = ['foto','foto-2','foto-3','foto-4','foto-5']
+const transmissions = ['','Automática','Manual']
+const fuels = ['','Gasolina','Diésel','Híbrido','Eléctrico']
+const brandOf = v => v.brand || v.title.trim().split(/\s+/)[0]
+const tags = v => `<span class="tag ${v.status === 'Reservado' ? 'reserved' : ''}">${esc(v.status)}</span>` +
+  (v.finance ? '<span class="tag">Financiación</span>' : '') +
+  (v.trade ? '<span class="tag">Retoma</span>' : '')
+const specs = v => [v.year,v.km.toLocaleString('es-CO')+' km',esc(v.transmission),esc(v.fuel)].filter(Boolean).join(' · ')
 if (demo) {
   for (const [slug, name] of [['bogota', 'Motor Bogotá'], ['andes', 'Autos Andes']]) {
     run('INSERT OR IGNORE INTO companies(slug,name,phone) VALUES(?,?,?)', slug, name, '')
@@ -47,6 +64,35 @@ if (demo) {
       run("INSERT INTO files(vehicle,kind,mime,body) VALUES(?,'foto','image/webp',?)",
         lastInsertRowid, readFileSync(new URL(image,import.meta.url)))
     }
+  }
+}
+if (demo) {
+  transaction(() => {
+    const created = run('INSERT OR IGNORE INTO companies(slug,name,phone) VALUES(?,?,?)','moviblind','MoviBlind','')
+    if (!created.changes) return
+    run('INSERT INTO users VALUES(?,?,?)','moviblind@demo.test',hash('VitrinaDemo2026!'),'moviblind')
+    const inventory = [
+      ['Toyota','RAV4',2024,18400,139900000,'Híbrido','Disponible',1,1,0],
+      ['Honda','Civic',2023,26500,89900000,'Gasolina','Disponible',1,0,1],
+      ['Mazda','CX-5',2024,21600,119900000,'Gasolina','Disponible',1,1,2],
+      ['Ford','F-150',2023,38000,186500000,'Gasolina','Reservado',0,1,3],
+    ]
+    for (const [brand,model,year,km,price,fuel,status,finance,trade,imageIndex] of inventory) {
+      const {lastInsertRowid} = run(`INSERT INTO vehicles
+        (company,title,price,status,year,km,description,plate,owners,soat,rtm,checked,fines,brand,model,transmission,fuel,finance,trade)
+        VALUES('moviblind',?,?,?,?,?,?,'',NULL,'','','','',?,?,'Automática',?,?,?)`,
+        brand+' '+model,price,status,year,km,'Ejemplo de catálogo. Imagen y datos ilustrativos.',brand,model,fuel,finance,trade)
+      run("INSERT INTO files(vehicle,kind,mime,body) VALUES(?,'foto','image/webp',?)",
+        lastInsertRowid,readFileSync(new URL('car-'+imageIndex+'.webp',import.meta.url)))
+    }
+  })
+}
+let moviblindLogo
+if (demo) {
+  try {
+    moviblindLogo = readFileSync(new URL('moviblind-logo.png',import.meta.url))
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error
   }
 }
 const adminEmail = demo ? 'admin@demo.test' : process.env.VITRINA_ADMIN_EMAIL?.trim().toLowerCase()
@@ -66,7 +112,7 @@ const page = (title, body, layout = 'workspace') => `<!doctype html><html lang="
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)} · Vitrina Motor</title><link rel="stylesheet" href="/style.css">
 <style>
-.workspace>h1{font-size:clamp(2rem,5vw,3.4rem);margin:12px 0 24px}.workspace section,.workspace fieldset,.workspace article{padding:20px;background:#fff;border:1px solid var(--line);border-radius:14px;margin:16px 0;min-width:0}.workspace section form,.workspace fieldset{display:grid;gap:12px}.workspace form>button{justify-self:start;margin-top:8px}.workspace .grid,.tools{align-items:start}.tools{display:flex;gap:12px;flex-wrap:wrap}.tools a,.workspace fieldset a{text-decoration:underline}.workspace legend{font-weight:800}.workspace textarea{min-height:92px}.access{max-width:480px;margin:24px auto}.access .card-body{gap:18px}.access form{display:grid;gap:14px}.login-error{background:#fff0e7;color:#853419;padding:12px;border-radius:8px}.detail{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:20px;margin-top:20px}.detail .image{border-radius:15px}.detail h1{font-size:clamp(2rem,4vw,3.8rem)}.detail .card-body{align-content:start;gap:18px}.detail p{overflow-wrap:anywhere}.filters .filter-action{display:flex;align-items:end;gap:8px;flex-wrap:wrap}.hero{min-height:360px}.company-card .secondary,.card-body .secondary{justify-self:start}.directory{margin-top:26px}.back{display:inline-block;margin:10px 0;font-weight:700}.metrics{margin:20px 0}.workspace .stock article{margin:0}.workspace .stock article .actions a{text-decoration:none}@media(max-width:680px){.detail{grid-template-columns:1fr}.hero{min-height:295px}.top .secondary{padding:8px 10px}.workspace section,.workspace fieldset{padding:14px}}
+.workspace>h1{font-size:clamp(2rem,5vw,3.4rem);margin:12px 0 24px}.workspace section,.workspace fieldset,.workspace article{padding:20px;background:#fff;border:1px solid var(--line);border-radius:14px;margin:16px 0;min-width:0}.workspace section form,.workspace fieldset{display:grid;gap:12px}.workspace form>button{justify-self:start;margin-top:8px}.workspace .grid,.tools{align-items:start}.tools{display:flex;gap:12px;flex-wrap:wrap}.tools a,.workspace fieldset a{text-decoration:underline}.workspace legend{font-weight:800}.workspace textarea{min-height:92px}.access{max-width:480px;margin:24px auto}.access .card-body{gap:18px}.access form{display:grid;gap:14px}.login-error{background:#fff0e7;color:#853419;padding:12px;border-radius:8px}.detail{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:20px;margin-top:20px}.detail .image{border-radius:15px}.detail h1{font-size:clamp(2rem,4vw,3.8rem)}.detail .card-body{align-content:start;gap:18px}.detail p{overflow-wrap:anywhere}.filters .filter-action{display:flex;align-items:end;gap:8px;flex-wrap:wrap}.hero{min-height:360px}.company-card .secondary,.card-body .secondary{justify-self:start}.directory{margin-top:26px}.back{display:inline-block;margin:10px 0;font-weight:700}.prospect{--accent:#e4c084}.prospect-brand{display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;padding:12px 16px;background:white;border:1px solid var(--line);border-radius:12px}.prospect-brand img{width:110px;height:auto}.metrics{margin:20px 0}.workspace .stock article{margin:0}.workspace .stock article .actions a{text-decoration:none}@media(max-width:680px){.detail{grid-template-columns:1fr}.hero{min-height:295px}.top .secondary{padding:8px 10px}.workspace section,.workspace fieldset{padding:14px}}
 </style></head><body><header class="top"><div class="wrap bar"><a class="brand" href="/"><b>VM</b> Vitrina Motor</a><nav aria-label="Navegación principal"><a class="secondary" href="/panel">Panel de empresas</a></nav></div></header>
 <main class="wrap ${layout}">${layout === 'workspace' ? `<h1>${esc(title)}</h1>` : ''}${body}</main></body></html>`
 const hero = (title, description, anchor, label) => `<section class="hero"><div><h1>${esc(title)}</h1>
@@ -76,7 +122,7 @@ const field = (label, name, value = '', options = '') =>
 const form = (action, body, upload = false) =>
   `<form method="post" action="${action}" ${upload ? 'enctype="multipart/form-data"' : ''}>${body}</form>`
 const select = (name, options, value) => `<select name="${name}">${options.map(option =>
-  `<option ${value === option ? 'selected' : ''}>${esc(option)}</option>`).join('')}</select>`
+  `<option value="${esc(option)}" ${value === option ? 'selected' : ''}>${esc(option || (name === 'brand' ? 'Todas' : 'Sin especificar'))}</option>`).join('')}</select>`
 const submit = label => `<button class="primary">${label}</button>`
 const logout = form('/salir', submit('Cerrar sesión'))
 const links = '<p class="tools"><a href="https://www.runt.gov.co/consultaCiudadana/">Consultar RUNT</a><a href="https://www.fcm.org.co/simit/">Consultar SIMIT</a></p>'
@@ -101,7 +147,7 @@ async function bodyOf(request) {
   let length = 0
   for await (const chunk of request) {
     length += chunk.length
-    if (length > 17 * 1024 * 1024) fail(413, 'La carga supera el tamaño permitido.')
+    if (length > 33 * 1024 * 1024) fail(413, 'La carga supera el tamaño permitido.')
     parts.push(chunk)
   }
   try {
@@ -112,18 +158,25 @@ async function bodyOf(request) {
     fail(400, 'Formulario inválido.')
   }
 }
-function photo(id, title, privatePhoto) {
-  return query("SELECT id FROM files WHERE vehicle=? AND kind='foto'", id)
-    ? `<img loading="lazy" alt="${esc(title)}" src="/${privatePhoto ? 'foto-inventario' : 'foto'}/${id}">` : ''
+function photos(id) {
+  return rows("SELECT kind FROM files WHERE vehicle=? AND (kind='foto' OR kind LIKE 'foto-%')",id)
+    .map(file => photoKinds.indexOf(file.kind)+1).filter(Boolean).sort((a,b)=>a-b)
 }
-function image(id, title, privatePhoto = false) {
-  return `<div class="image">${photo(id, title, privatePhoto) || '<span>Sin foto</span>'}</div>`
+function photoUrl(id, slot, privatePhoto = false) {
+  return `/${privatePhoto ? 'foto-inventario' : 'foto'}/${id}/${slot}`
+}
+function image(id, title, privatePhoto = false, slot) {
+  const available = id ? photos(id) : []
+  const cover = id && query('SELECT cover FROM vehicles WHERE id=?',id)?.cover
+  const selected = slot || (available.includes(cover) ? cover : available[0])
+  const content = selected ? `<img loading="lazy" alt="${esc(title)}" src="${photoUrl(id,selected,privatePhoto)}">` : '<span>Sin foto</span>'
+  return `<div class="image">${content}</div>`
 }
 function directory(response) {
-  const companies = rows(`SELECT c.slug,c.name,COUNT(v.id) AS total,
+  const companies = rows(`SELECT c.slug,c.name,COUNT(DISTINCT v.id) AS total,
     MAX(CASE WHEN f.id IS NOT NULL THEN v.id END) AS cover
     FROM companies c LEFT JOIN vehicles v ON v.company=c.slug AND v.status IN ('Disponible','Reservado')
-    LEFT JOIN files f ON f.vehicle=v.id AND f.kind='foto'
+    LEFT JOIN files f ON f.vehicle=v.id AND f.kind IN ('foto','foto-2','foto-3','foto-4','foto-5')
     WHERE c.enabled=1 GROUP BY c.slug ORDER BY c.name`)
   show(response,'Concesionarios', hero('Encuentra tu próximo vehículo', 'Explora los catálogos y contacta directamente al concesionario.', 'concesionarios', 'Ver concesionarios') +
     `<div class="section-title" id="concesionarios"><h2>Concesionarios</h2></div><div class="grid directory">${companies.map(c =>
@@ -132,46 +185,71 @@ function directory(response) {
       <a class="secondary" href="/c/${c.slug}">Ver catálogo</a></div></article>`).join('') || '<p class="empty">Aún no hay concesionarios publicados.</p>'}</div>`,200,'public')
 }
 function catalog(response, company, params) {
-  const vehicles = rows("SELECT id,title,price,year,km,status FROM vehicles WHERE company=? AND status IN ('Disponible','Reservado') ORDER BY id DESC", company.slug)
+  const branded = demo && company.slug === 'moviblind'
+  const branding = branded ? `<div class="prospect-brand">
+    ${moviblindLogo ? '<img src="/moviblind-logo.png" alt="MoviBlind">' : '<strong>MoviBlind</strong>'}
+    <p>Demostración privada · Vehículos, precios y condiciones ilustrativos</p>
+    <a class="secondary" href="/ingresar?demo=moviblind">Acceso a inventario</a></div>` : ''
+  const vehicles = rows("SELECT id,title,price,year,km,status,brand,transmission,fuel,finance,trade FROM vehicles WHERE company=? AND status IN ('Disponible','Reservado') ORDER BY id DESC", company.slug)
   const search = (params.get('q') || '').slice(0,120).trim()
+  const brand = params.get('brand') || ''
+  const brands = [...new Set(vehicles.map(brandOf))].sort((a,b)=>a.localeCompare(b,'es'))
   const max = params.get('max') || ''
   const year = params.get('year') || ''
   const status = params.get('status') || 'Todos'
   const sort = params.get('sort') || 'Más recientes'
   const filtered = vehicles.filter(v => v.title.toLowerCase().includes(search.toLowerCase()) &&
-    (!max || v.price <= Number(max)) && (!year || v.year >= Number(year)) &&
+    (!brand || brandOf(v) === brand) && (!max || v.price <= Number(max)) && (!year || v.year >= Number(year)) &&
     (!publicStatuses.includes(status) || v.status === status))
   if (sort === 'Menor precio') filtered.sort((a,b) => a.price-b.price)
   if (sort === 'Mayor precio') filtered.sort((a,b) => b.price-a.price)
-  show(response, company.name, `<a class="back" href="/">← Concesionarios</a>` +
+  show(response, company.name, branding + `<a class="back" href="/">← Concesionarios</a>` +
     hero(company.name, 'Consulta el inventario y encuentra un vehículo para tu presupuesto.', 'vehiculos', 'Explorar vehículos') +
     `<div class="section-title" id="vehiculos"><div><h2>Vehículos publicados</h2><p>${filtered.length} de ${vehicles.length}</p></div></div>
     <form class="filters" action="/c/${company.slug}#vehiculos">
     ${field('Marca o modelo','q',search,'type="search" maxlength="120" placeholder="Ej. Toyota"')}
+    <label>Marca${select('brand',['',...brands],brand)}</label>
     ${field('Precio máximo (COP)','max',max,'type="number" min="1"')}
     ${field('Año desde','year',year,'type="number" min="1900" max="2100"')}
     <label>Estado${select('status',['Todos',...publicStatuses],status)}</label>
     <label>Orden${select('sort',['Más recientes','Menor precio','Mayor precio'],sort)}</label>
     <div class="filter-action">${submit('Buscar')}<a class="secondary" href="/c/${company.slug}#vehiculos">Limpiar</a></div></form>
     <div class="grid">${filtered.map(v => `<article class="card">${image(v.id,v.title)}<div class="card-body">
-    <span class="tag ${v.status === 'Reservado' ? 'reserved' : ''}">${esc(v.status)}</span><h3>${esc(v.title)}</h3>
-    <p class="meta">${v.year} · ${v.km.toLocaleString('es-CO')} km</p><p class="price">${money.format(v.price)}</p>
-    <a class="secondary" href="/c/${company.slug}/${v.id}">Ver ficha</a></div></article>`).join('') || '<p class="empty">No encontramos vehículos con estos filtros.</p>'}</div>`,200,'public')
+    <div>${tags(v)}</div><h3>${esc(v.title)}</h3>
+    <p class="meta">${specs(v)}</p><p class="price">${money.format(v.price)}</p>
+    <a class="secondary" href="/c/${company.slug}/${v.id}">Ver ficha</a></div></article>`).join('') || '<p class="empty">No encontramos vehículos con estos filtros.</p>'}</div>`,200,branded ? 'public prospect' : 'public')
 }
-function vehiclePage(response, company, vehicle) {
+function vehiclePage(response, company, vehicle, selected) {
+  const available = photos(vehicle.id)
+  const slot = available.includes(Number(selected)) ? Number(selected) : undefined
   const message = encodeURIComponent('Hola, me interesa el vehículo ' + vehicle.title + '. ¿Sigue disponible?')
   const contact = company.phone
     ? `<a class="primary" href="https://wa.me/${company.phone}?text=${message}">Consultar por WhatsApp</a>`
     : '<p class="meta">El concesionario aún no ha configurado su WhatsApp.</p>'
   show(response, vehicle.title, `<a class="back" href="/c/${company.slug}">← Catálogo de ${esc(company.name)}</a>
-    <div class="detail">${image(vehicle.id,vehicle.title)}<section class="card card-body">
-    <p><span class="tag ${vehicle.status === 'Reservado' ? 'reserved' : ''}">${esc(vehicle.status)}</span></p>
-    <h1>${esc(vehicle.title)}</h1><p class="meta">${vehicle.year} · ${vehicle.km.toLocaleString('es-CO')} km</p>
+    <div class="detail"><div>${image(vehicle.id,vehicle.title,false,slot)}
+    ${available.length > 1 ? `<div class="gallery">${available.map((number,index) => `<a href="?foto=${number}" aria-label="Ver foto ${index+1}"><img alt="" src="${photoUrl(vehicle.id,number)}"></a>`).join('')}</div>` : ''}</div><section class="card card-body">
+    <p>${tags(vehicle)}</p>
+    <h1>${esc(vehicle.title)}</h1><p class="meta">${specs(vehicle)}</p>
     <p class="price">${money.format(vehicle.price)}</p><p>${esc(vehicle.description)}</p><div>${contact}</div>
+    <div class="tools"><button class="secondary" type="button" data-copy-link>Copiar enlace</button><a class="secondary" href="/c/${company.slug}/${vehicle.id}?descargar=1">Descargar ficha</a></div><p role="status" id="share-status"></p>
+    <script src="/compartir.js" defer></script>
     </section></div>`,200,'public')
 }
+function download(response, company, vehicle) {
+  const images = rows('SELECT kind,mime,body FROM files WHERE vehicle=?',vehicle.id)
+    .filter(file => photoKinds.includes(file.kind))
+    .sort((a,b) => Number(b.kind === photoKinds[vehicle.cover-1]) - Number(a.kind === photoKinds[vehicle.cover-1]))
+  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(vehicle.title)}</title>
+  <style>body{font:16px system-ui;color:#142923;max-width:860px;margin:auto;padding:24px}img{width:100%;border-radius:12px;margin:10px 0}.tag{display:inline-block;background:#e9f2dc;padding:6px 12px;margin:4px;border-radius:25px}</style></head><body>
+  <p>${esc(company.name)}</p><h1>${esc(vehicle.title)}</h1><p>${tags(vehicle)}</p><h2>${money.format(vehicle.price)}</h2>
+  <p>${specs(vehicle)}</p><p>${esc(vehicle.description)}</p>
+  ${company.phone ? `<p><a href="https://wa.me/${company.phone}">Contactar al concesionario</a></p>` : ''}
+  ${images.map(file => `<img alt="${esc(vehicle.title)}" src="data:${file.mime};base64,${Buffer.from(file.body).toString('base64')}">`).join('')}</body></html>`
+  response.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Content-Disposition':'attachment; filename="ficha-vehiculo.html"'}).end(html)
+}
 function loginPage(response, error = '', email = '') {
-  const demoInfo = demo ? '<div class="notice"><strong>Cuentas de prueba</strong><p>admin@demo.test · bogota@demo.test · andes@demo.test</p><p>Contraseña: <code>VitrinaDemo2026!</code></p></div>' : ''
+  const demoInfo = demo ? '<div class="notice"><strong>Cuentas de prueba</strong><p>admin@demo.test · bogota@demo.test · andes@demo.test · moviblind@demo.test</p><p>Contraseña: <code>VitrinaDemo2026!</code></p></div>' : ''
   show(response,'Acceso al panel',`<section class="card access"><div class="card-body"><h2>Acceso al panel</h2>
     ${error ? '<p class="login-error" role="alert">' + esc(error) + '</p>' : ''}
     ${form('/ingresar',field('Correo','email',email,'type="email" required autocomplete="username"') +
@@ -181,17 +259,27 @@ function loginPage(response, error = '', email = '') {
 function editor(response, company, vehicle = {}) {
   const {id} = vehicle
   const files = id ? rows('SELECT kind FROM files WHERE vehicle=?', id).map(file => file.kind) : []
-  const upload = (label, kind, accept) => `<label>${label}<input type="file" name="${kind}" accept="${accept}"></label>${files.includes(kind) && kind !== 'foto' ? `<a href="/expediente/${id}/${kind}">Descargar documento guardado</a>` : ''}`
+  const upload = (label, kind, accept) => `<label>${label}<input type="file" name="${kind}" accept="${accept}"></label>${files.includes(kind) && kind.endsWith('-pdf') ? `<a href="/expediente/${id}/${kind}">Descargar documento guardado</a>` : ''}`
   show(response, id ? 'Editar vehículo' : 'Nuevo vehículo', `<p><a href="/panel">Volver al inventario</a></p>
     ${form(id ? '/vehiculos/' + id : '/vehiculos', `
       <fieldset><legend>Ficha pública</legend><div class="grid">
-      ${field('Marca, modelo y versión','title',vehicle.title,'required maxlength="120"')}
+      ${field('Marca','brand',id ? brandOf(vehicle) : '','required maxlength="40"')}
+      ${field('Modelo y versión','model',vehicle.model || (id ? vehicle.title.slice(brandOf(vehicle).length).trim() : ''),'required maxlength="120"')}
+      <label>Transmisión${select('transmission',transmissions,vehicle.transmission)}</label>
+      <label>Combustible${select('fuel',fuels,vehicle.fuel)}</label>
       ${field('Precio en COP','price',vehicle.price,'type="number" min="1" required')}
       ${field('Año','year',vehicle.year,'type="number" min="1900" max="2100" required')}
       ${field('Kilometraje','km',vehicle.km,'type="number" min="0" required')}
       <label>Estado${select('status',statuses,vehicle.status)}</label></div>
       <label>Descripción pública<textarea name="description" maxlength="2000">${esc(vehicle.description)}</textarea></label>
-      ${upload('Foto de portada (máximo 4 MB)','foto','image/jpeg,image/png,image/webp')}</fieldset>
+      <div class="tools"><label class="check"><input type="checkbox" name="finance" ${vehicle.finance ? 'checked' : ''}> Acepta financiación</label>
+      <label class="check"><input type="checkbox" name="trade" ${vehicle.trade ? 'checked' : ''}> Acepta retoma</label></div>
+      <h2>Fotos del vehículo</h2><p class="meta">Hasta 5 fotos. Elige la portada y guarda los cambios.</p>
+      <div class="form-grid">${photoKinds.map((kind,index) => `<div>
+      ${files.includes(kind) ? image(id,vehicle.title,true,index+1) : ''}
+      ${upload('Foto ' + (index+1) + ' (hasta 4 MB)',kind,'image/jpeg,image/png,image/webp')}
+      <label class="check"><input type="radio" name="cover" value="${index+1}" ${(vehicle.cover || 1) === index+1 ? 'checked' : ''}> Usar como portada</label>
+      ${files.includes(kind) ? `<label class="check"><input type="checkbox" name="remove" value="${index+1}"> Quitar foto guardada</label>` : ''}</div>`).join('')}</div></fieldset>
       <fieldset><legend>Expediente privado</legend><div class="grid">
       ${field('Placa','plate',vehicle.plate,'maxlength="10"')}
       ${field('Cantidad de propietarios anteriores','owners',vehicle.owners,'type="number" min="0" max="999"')}
@@ -222,10 +310,10 @@ function panel(response, user) {
   }
   const company = query('SELECT * FROM companies WHERE slug=?', user.company)
   const vehicles = rows('SELECT * FROM vehicles WHERE company=? ORDER BY id DESC', user.company)
-  show(response, company.name + ' · Inventario', `<div class="tools"><a href="/c/${company.slug}">Ver catálogo público</a><a class="primary" href="/vehiculos/nuevo">Nuevo vehículo</a>${logout}</div>
+  show(response, company.name + ' · Inventario', `<div class="tools"><a href="/c/${company.slug}">Ver catálogo público</a><a class="primary" href="/vehiculos/nuevo">Agregar vehículo</a>${logout}</div>
     <section>${form('/contacto', field('WhatsApp del concesionario','phone',company.phone,'pattern="[1-9][0-9]{7,14}"') + submit('Guardar contacto'))}</section>
     <div class="metrics">${statuses.map(status => `<div><strong>${vehicles.filter(v => v.status === status).length}</strong>${esc(status)}</div>`).join('')}</div>
-    <div class="stock">${vehicles.map(v => `<article>${image(v.id,v.title,true)}<div><h3>${esc(v.title)}</h3><p>${esc(v.status)} · ${money.format(v.price)}</p>
+    <div class="stock">${vehicles.map(v => `<article>${image(v.id,v.title,true)}<div><h3>${esc(v.title)}</h3><p>${money.format(v.price)}</p><p>${tags(v)}</p>
     <p class="muted">SOAT ${expiry(v.soat)} · Técnico-mecánica ${expiry(v.rtm)}</p>
     </div><div class="actions"><a class="secondary" href="/vehiculos/${v.id}">Editar expediente</a>${publicStatuses.includes(v.status) ? `<a class="secondary" href="/c/${company.slug}/${v.id}">Ficha pública</a>` : ''}</div></article>`).join('') || '<p>Aún no hay vehículos.</p>'}</div>`)
 }
@@ -269,21 +357,27 @@ function transaction(work) {
 }
 async function saveVehicle(data, user, vehicle) {
   const company = user.company
-  const title = text(data,'title',120)
+  const brand = text(data,'brand',40)
+  const model = text(data,'model',120)
+  const title = [brand,model].filter(Boolean).join(' ')
+  const transmission = text(data,'transmission',30)
+  const fuel = text(data,'fuel',30)
+  if (!transmissions.includes(transmission) || !fuels.includes(fuel)) fail(400,'Revisa la transmisión y el combustible.')
+  const cover = data.get('cover') ? integer(data,'cover',1,5) : 1
   const status = text(data,'status',20)
-  if (!title || !statuses.includes(status)) fail(400, 'Completa el nombre y selecciona un estado válido.')
+  if (!brand || !model || !statuses.includes(status)) fail(400, 'Completa el nombre y selecciona un estado válido.')
   const values = [title, integer(data,'price',1,1e12), status, integer(data,'year',1900,2100),
     integer(data,'km',0,1e7), text(data,'description',2000), text(data,'plate',10).toUpperCase(),
     data.get('owners') ? integer(data,'owners',0,999) : null, date(data,'soat'), date(data,'rtm'),
     date(data,'checked'), text(data,'fines',500)]
   const uploads = []
-  for (const kind of ['foto','soat-pdf','rtm-pdf','simit-pdf']) {
+  for (const kind of [...photoKinds,'soat-pdf','rtm-pdf','simit-pdf']) {
     const file = data.get(kind)
     if (!(file instanceof File) || !file.size) continue
     if (file.size > 4 * 1024 * 1024) fail(413, 'Cada archivo debe pesar como máximo 4 MB.')
     const bytes = Buffer.from(await file.arrayBuffer())
     let mime
-    if (kind === 'foto') {
+    if (photoKinds.includes(kind)) {
       if (bytes.subarray(0,3).toString('hex') === 'ffd8ff') mime = 'image/jpeg'
       else if (bytes.subarray(0,8).toString('hex') === '89504e470d0a1a0a') mime = 'image/png'
       else if (bytes.toString('ascii',0,4) === 'RIFF' && bytes.toString('ascii',8,12) === 'WEBP') mime = 'image/webp'
@@ -298,8 +392,15 @@ async function saveVehicle(data, user, vehicle) {
       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,company,...values).lastInsertRowid
     if (vehicle) run(`UPDATE vehicles SET title=?,price=?,status=?,year=?,km=?,description=?,
       plate=?,owners=?,soat=?,rtm=?,checked=?,fines=? WHERE id=? AND company=?`,...values,id,company)
+    for (const [index,kind] of photoKinds.entries()) {
+      if (data.getAll('remove').includes(String(index+1))) run('DELETE FROM files WHERE vehicle=? AND kind=?',id,kind)
+    }
     for (const upload of uploads) run(`INSERT INTO files(vehicle,kind,mime,body) VALUES(?,?,?,?)
       ON CONFLICT(vehicle,kind) DO UPDATE SET mime=excluded.mime,body=excluded.body`,id,...upload)
+    const available = photos(id)
+    run('UPDATE vehicles SET brand=?,model=?,transmission=?,fuel=?,finance=?,trade=?,cover=? WHERE id=? AND company=?',
+      brand,model,transmission,fuel,Number(data.has('finance')),Number(data.has('trade')),
+      available.includes(cover) ? cover : (available[0] || 1), id,company)
   })
 }
 const secure = process.env.VITRINA_SECURE_COOKIE === '1'
@@ -310,7 +411,7 @@ const attempts = new Map()
 const dummyPassword = hash(randomBytes(32).toString('hex'))
 const server = createServer(async (request,response) => {
   response.setHeader('X-Content-Type-Options','nosniff')
-  response.setHeader('Content-Security-Policy',"default-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
+  response.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
   response.setHeader('Cache-Control','no-store')
   try {
     const url = new URL(request.url,'http://localhost')
@@ -386,6 +487,18 @@ const server = createServer(async (request,response) => {
     }
     if (request.method !== 'GET') fail(405,'Método no permitido.')
     if (!route) return directory(response)
+    if (route === 'compartir.js' && !key) {
+      return response.writeHead(200,{'Content-Type':'text/javascript; charset=utf-8'}).end(
+        `document.querySelector('[data-copy-link]').addEventListener('click', async () => {
+          const url = location.origin + location.pathname
+          try {
+            await navigator.clipboard.writeText(url)
+            document.querySelector('#share-status').textContent = 'Enlace copiado.'
+          } catch {
+            document.querySelector('#share-status').textContent = url
+          }
+        })`)
+    }
     if (route === 'style.css' && !key) {
       return response.writeHead(200,{'Content-Type':'text/css; charset=utf-8'})
         .end(readFileSync(new URL('style.css',import.meta.url)))
@@ -394,29 +507,34 @@ const server = createServer(async (request,response) => {
       return response.writeHead(200,{'Content-Type':'image/webp'})
         .end(readFileSync(new URL('hero.webp',import.meta.url)))
     }
-    if (route === 'ingresar' && !key) return loginPage(response)
+    if (route === 'moviblind-logo.png' && !key && moviblindLogo) {
+      return response.writeHead(200,{'Content-Type':'image/png'}).end(moviblindLogo)
+    }
+    if (route === 'ingresar' && !key) return loginPage(response,'',demo && url.searchParams.get('demo') === 'moviblind' ? 'moviblind@demo.test' : '')
     if (route === 'panel' && !key) return user ? panel(response,user) : redirect(response,'/ingresar')
     if (route === 'c' && key) {
       const company = query('SELECT * FROM companies WHERE slug=? AND enabled=1',key)
       if (!company) return unavailable()
       if (!sub) return catalog(response,company,url.searchParams)
       const vehicle = query("SELECT * FROM vehicles WHERE id=? AND company=? AND status IN ('Disponible','Reservado')",sub,key)
-      return vehicle ? vehiclePage(response,company,vehicle) : unavailable()
+      if (!vehicle) return unavailable()
+      if (url.searchParams.get('descargar') === '1') return download(response,company,vehicle)
+      return vehiclePage(response,company,vehicle,url.searchParams.get('foto'))
     }
     if (route === 'vehiculos' && user?.company && key && !sub) {
       if (key === 'nuevo') return editor(response,user.company)
       const vehicle = query('SELECT * FROM vehicles WHERE id=? AND company=?',key,user.company)
       return vehicle ? editor(response,user.company,vehicle) : unavailable()
     }
-    if (route === 'foto-inventario' && user?.company && key && !sub) {
+    if (route === 'foto-inventario' && user?.company && key) {
       const file = query(`SELECT f.mime,f.body FROM files f JOIN vehicles v ON v.id=f.vehicle
-        WHERE v.id=? AND v.company=? AND f.kind='foto'`,key,user.company)
+        WHERE v.id=? AND v.company=? AND f.kind=?`,key,user.company,photoKinds[Number(sub || 1)-1] || '')
       return file ? response.writeHead(200,{'Content-Type':file.mime}).end(file.body) : unavailable()
     }
-    if (route === 'foto' && key && !sub) {
+    if (route === 'foto' && key) {
       const file = query(`SELECT f.mime,f.body FROM files f JOIN vehicles v ON v.id=f.vehicle
-        JOIN companies c ON c.slug=v.company WHERE v.id=? AND f.kind='foto' AND c.enabled=1
-        AND v.status IN ('Disponible','Reservado')`,key)
+        JOIN companies c ON c.slug=v.company WHERE v.id=? AND f.kind=? AND c.enabled=1
+        AND v.status IN ('Disponible','Reservado')`,key,photoKinds[Number(sub || 1)-1] || '')
       return file ? response.writeHead(200,{'Content-Type':file.mime}).end(file.body) : unavailable()
     }
     if (route === 'expediente' && user?.company && key && ['soat-pdf','rtm-pdf','simit-pdf'].includes(sub)) {
