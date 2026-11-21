@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "node serve.mjs",
-    "check": "node --check app.js && node --check serve.mjs"
+    "check": "node --check app.js && node --check serve.mjs && node --check empresas.mjs",
+    "empresas": "node empresas.mjs",
+    "empresas:demo": "node empresas.mjs --demo"
   }
 }
