@@ -1,0 +1,9 @@
+{
+  "name": "vitrina-motor",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "node serve.mjs",
+    "check": "node --check app.js && node --check serve.mjs"
+  }
+}

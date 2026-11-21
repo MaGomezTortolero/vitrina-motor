@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Catálogo e inventario de vehículos para concesionarios.">
+<title>Vitrina Motor</title>
+<link rel="stylesheet" href="./style.css">
+<script src="./app.js" defer></script>
+</head>
+<body>
+<header class="top"><div class="wrap bar"><a class="brand" href="./"><b>VM</b><span>Vitrina Motor</span></a><nav aria-label="Vistas"><button id="catalog-tab" type="button" aria-pressed="true">Catálogo</button><button id="inventory-tab" type="button" aria-pressed="false">Inventario</button></nav></div></header>
+<main class="wrap">
+<section id="catalog">
+<div class="hero"><div><p class="eyebrow">CATÁLOGO DE VEHÍCULOS</p><h1>Encuentra tu<br>próximo carro.</h1><p>Explora el inventario, compara opciones y consulta por el vehículo que te interesa.</p><a class="primary" href="#vehiculos">Ver vehículos</a></div></div>
+<div class="section-title" id="vehiculos"><div><h2>Vehículos en vitrina</h2><p id="count"></p></div><button id="clear" class="secondary">Limpiar filtros</button></div>
+<form id="filters" class="filters">
+<label>Buscar<input name="search" type="search" placeholder="Marca o modelo"></label>
+<label>Marca<select name="brand"><option value="">Todas</option></select></label>
+<label>Precio máximo<input name="max" type="number" min="0" placeholder="Cualquier precio"></label>
+<label>Disponibilidad<select name="status"><option value="">Disponible o reservado</option><option>Disponible</option><option>Reservado</option></select></label>
+<label>Orden<select name="sort"><option value="">Recientes</option><option value="asc">Menor precio</option><option value="desc">Mayor precio</option></select></label>
+</form>
+<div class="grid" id="cards"></div>
+</section>
+<section id="inventory" hidden>
+<div class="section-title"><div><h1>Inventario</h1><p>Administra las fichas que aparecen en tu catálogo.</p></div><button id="add" class="primary">Agregar vehículo</button></div>
+<div id="metrics" class="metrics"></div>
+<div class="notice">Demo con datos ficticios y almacenamiento en este navegador. Usa «Descargar ficha» para enviar una copia con sus fotos.</div>
+<div class="inventory-tools"><label>WhatsApp del concesionario<input id="phone" inputmode="tel" placeholder="Ej. 573001234567" maxlength="22"></label><button class="secondary" id="save-phone">Guardar WhatsApp</button></div>
+<div id="stock" class="stock"></div>
+</section>
+</main>
+<footer><div class="wrap bar"><span>Vitrina Motor</span><span>Demo de catálogo para concesionarios</span></div></footer>
+<dialog id="detail"></dialog>
+<dialog id="editor">
+<form id="vehicle-form">
+<div class="modal-head"><h2 id="editor-title">Agregar vehículo</h2><button type="button" class="secondary" data-close="editor" aria-label="Cerrar">Cerrar</button></div>
+<div class="form-grid">
+<label>Marca<input name="brand" required maxlength="40"></label><label>Modelo y versión<input name="model" required maxlength="70"></label>
+<label>Año<input name="year" type="number" min="1950" max="2100" required></label><label>Kilometraje<input name="km" type="number" min="0" max="9999999" required></label>
+<label>Precio en COP<input name="price" type="number" min="1" max="99999999999" required></label>
+<label>Transmisión<select name="transmission"><option>Automática</option><option>Manual</option></select></label>
+<label>Combustible<select name="fuel"><option>Gasolina</option><option>Diésel</option><option>Híbrido</option><option>Eléctrico</option></select></label>
+<label>Estado<select name="status"><option>Borrador</option><option>Disponible</option><option>Reservado</option><option>Vendido</option></select></label>
+<label class="wide">Descripción<textarea name="description" maxlength="500" rows="3"></textarea></label>
+<label class="check"><input name="finance" type="checkbox"> Acepta financiación</label><label class="check"><input name="trade" type="checkbox"> Acepta retoma</label>
+<label class="wide">Fotos del vehículo<input id="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple><small>Hasta 5 fotos. Elige cuál mostrar como portada.</small></label>
+</div>
+<div id="photo-list" class="photo-list"></div>
+<p id="form-status" role="status"></p>
+<button class="primary" id="save-vehicle">Guardar vehículo</button>
+</form>
+</dialog>
+<div id="toast" role="status" class="toast" hidden></div>
+</body>
+</html>
